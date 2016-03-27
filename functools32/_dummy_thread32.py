@@ -6,10 +6,7 @@ not need to be rewritten for when the thread module is not present.
 Suggested usage is::
 
     try:
-        try:
-            import _thread  # Python >= 3
-        except:
-            import thread as _thread  # Python < 3
+        import _thread
     except ImportError:
         import _dummy_thread as _thread
 

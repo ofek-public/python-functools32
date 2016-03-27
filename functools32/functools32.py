@@ -17,8 +17,8 @@ from .reprlib32 import recursive_repr as _recursive_repr
 from weakref import proxy as _proxy
 import sys as _sys
 try:
-    from thread import allocate_lock as Lock
-except ImportError:
+    from _thread import allocate_lock as Lock
+except:
     from ._dummy_thread32 import allocate_lock as Lock
 
 ################################################################################
@@ -209,7 +209,7 @@ class OrderedDict(dict):
         for k in vars(OrderedDict()):
             inst_dict.pop(k, None)
         if inst_dict:
-            return (self.__class__, (items,), inst_dict)
+            return self.__class__, (items,), inst_dict
         return self.__class__, (items,)
 
     def copy(self):
@@ -334,7 +334,7 @@ def cmp_to_key(mycmp):
 
 _CacheInfo = namedtuple("CacheInfo", "hits misses maxsize currsize")
 
-def lru_cache(maxsize=100):
+def lru_cache(maxsize=100, num_key_args=None):
     """Least-recently-used cache decorator.
 
     If *maxsize* is set to None, the LRU features are disabled and the cache
@@ -359,7 +359,8 @@ def lru_cache(maxsize=100):
 
         hits, misses = [0], [0]
         kwd_mark = (object(),)          # separates positional and keyword args
-        lock = Lock()                   # needed because OrderedDict isn't threadsafe
+        #TODO: Enable if multithreading support is required
+        #lock = Lock()                   # needed because OrderedDict isn't threadsafe
 
         if maxsize is None:
             cache = dict()              # simple cache without ordering or size limit
@@ -369,6 +370,8 @@ def lru_cache(maxsize=100):
                 key = args
                 if kwds:
                     key += kwd_mark + tuple(sorted(kwds.items()))
+                if num_key_args:
+                    key = key[:num_key_args]
                 try:
                     result = cache[key]
                     hits[0] += 1
@@ -376,6 +379,9 @@ def lru_cache(maxsize=100):
                 except KeyError:
                     pass
                 result = user_function(*args, **kwds)
+                #We do not allow caching of mutable collections
+                if isinstance(result, (list, set)):
+                    raise TypeError('Cannot cache mutable collections - use tuple/frozenset instead !!!')
                 cache[key] = result
                 misses[0] += 1
                 return result
@@ -389,32 +395,59 @@ def lru_cache(maxsize=100):
                 key = args
                 if kwds:
                     key += kwd_mark + tuple(sorted(kwds.items()))
-                with lock:
-                    try:
-                        result = cache[key]
-                        cache_renew(key)    # record recent use of this key
-                        hits[0] += 1
-                        return result
-                    except KeyError:
-                        pass
+                if num_key_args:
+                    key = key[:num_key_args]
+#TODO: Enable if multithreading support is required, instead of the same block unindented       
+#                 with lock:
+#                     try:
+#                         result = cache[key]
+#                         cache_renew(key)    # record recent use of this key
+#                         hits[0] += 1
+#                         return result
+#                     except KeyError:
+#                         pass
+                try:
+                    result = cache[key]
+                    cache_renew(key)    # record recent use of this key
+                    hits[0] += 1
+                    return result
+                except KeyError:
+                    pass
+
                 result = user_function(*args, **kwds)
-                with lock:
-                    cache[key] = result     # record recent use of this key
-                    misses[0] += 1
-                    if len(cache) > maxsize:
-                        cache_popitem(0)    # purge least recently used cache entry
+                #We do not allow caching of mutable collections
+                if isinstance(result, (list, set)):
+                    raise TypeError('Cannot cache mutable collections - use tuple/frozenset instead !!!')
+                
+#TODO: Enable if multithreading support is required, instead of the same block unindented
+#                 with lock:
+#                     cache[key] = result     # record recent use of this key
+#                     misses[0] += 1
+#                     if len(cache) > maxsize:
+#                         cache_popitem(0)    # purge least recently used cache entry
+                cache[key] = result	 # record recent use of this key
+                misses[0] += 1
+                if len(cache) > maxsize:
+                    cache_popitem(0)	# purge least recently used cache entry
+
                 return result
 
         def cache_info():
             """Report cache statistics"""
-            with lock:
-                return _CacheInfo(hits[0], misses[0], maxsize, len(cache))
+#TODO: Enable if multithreading support is required, instead of the same block unindented
+#             with lock:
+#                 return _CacheInfo(hits[0], misses[0], maxsize, len(cache))
+            return _CacheInfo(hits[0], misses[0], maxsize, len(cache))
 
         def cache_clear():
             """Clear the cache and cache statistics"""
-            with lock:
-                cache.clear()
-                hits[0] = misses[0] = 0
+#TODO: Enable if multithreading support is required, instead of the same block unindented            
+#             with lock:
+#                 cache.clear()
+#                 hits[0] = misses[0] = 0
+            cache.clear()
+            hits[0] = misses[0] = 0
+
 
         wrapper.cache_info = cache_info
         wrapper.cache_clear = cache_clear
